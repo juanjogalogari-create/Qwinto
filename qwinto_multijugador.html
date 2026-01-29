@@ -16,61 +16,18 @@ td { width: 40px; height: 40px; border: 1px solid #999; text-align: center; vert
 .circle { width: 20px; height: 20px; border-radius: 50%; background: #666; }
 .hex { width: 20px; height: 20px; background: #f39c12; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
 .cell-input { position: absolute; width: 100%; height: 100%; text-align: center; border: none; background: transparent; font-weight: bold; font-size: 14px; cursor: pointer; }
-.orange { background: #ffd9b3; }
-.yellow { background: #fff3b0; }
-.blue { background: #cce5ff; }
-#startBtn {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  background-color: #28a745; 
-  color: white;
-  padding: 8px 14px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  box-shadow: 0 3px 5px rgba(0,0,0,0.3);
-}
+
+/* Botón iniciar y lanzar dados */
+#startBtn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); background-color: #28a745; color: white; padding: 8px 14px; border: none; border-radius: 8px; font-size: 14px; font-weight: bold; box-shadow: 0 3px 5px rgba(0,0,0,0.3); }
 #startBtn:hover { background-color: #218838; }
 
 /* Botón de instrucciones destacado */
-button#showInstructions {
-    background-color: #ff9800;  /* color naranja brillante */
-    color: white;
-    border: none;
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
-    box-shadow: 0 3px 5px rgba(0,0,0,0.3);
-}
-button#showInstructions:hover {
-    background-color: #e68900;  /* un poco más oscuro al pasar el mouse */
-}
+button#showInstructions { background-color: #ff9800; color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 5px rgba(0,0,0,0.3); }
+button#showInstructions:hover { background-color: #e68900; }
 
 /* Instrucciones */
-#instructionsPanel {
-    display: none;
-    position: fixed;
-    top: 10%;
-    left: 10%;
-    width: 80%;
-    height: 80%;
-    background: white;
-    border: 2px solid #444;
-    border-radius: 10px;
-    padding: 20px;
-    overflow-y: auto;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-    z-index: 9999;
-}
-#instructionsPanel button {
-    margin-top: 20px;
-    background-color: #007bff;
-    color: white;
-}
+#instructionsPanel { display: none; position: fixed; top: 10%; left: 10%; width: 80%; height: 80%; background: white; border: 2px solid #444; border-radius: 10px; padding: 20px; overflow-y: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 9999; }
+#instructionsPanel button { margin-top: 20px; background-color: #007bff; color: white; }
 #instructionsPanel button:hover { background-color: #0056b3; }
 </style>
 </head>
@@ -128,7 +85,6 @@ Jugadores:
 </div>
 
 <script>
-// Variables globales
 var currentPlayer = 0;
 var totalPlayers = 2;
 var playerNames = [];
@@ -137,7 +93,6 @@ var lastRoll = null;
 var rollColors = []; 
 var hasRolled = false;
 
-// Funciones
 function showInstructions(){ document.getElementById("instructionsPanel").style.display="block"; }
 function hideInstructions(){ document.getElementById("instructionsPanel").style.display="none"; }
 
@@ -204,7 +159,7 @@ function renderPlayers() {
                 html += '<td><div class="cell">';
                 if(boardData[color][j]==='circle') html+='<div class="circle"></div>';
                 else if(boardData[color][j]==='hex') html+='<div class="hex"></div>';
-                html += '<input type="text" class="cell-input" onclick="placeNumber('+i+','+rowIndex+','+j+')" >';
+                html += '<input type="text" class="cell-input" readonly onclick="placeNumber('+i+','+rowIndex+','+j+')">';
                 html += '</div></td>';
             }
             html += '<td style="background:#ddd; font-weight:bold;" id="score_'+i+'_'+color+'">0</td>';
@@ -254,11 +209,10 @@ function placeNumber(playerIndex,rowIndex,colIndex){
     var allowedColors = rollColors.length===3 ? colors : rollColors;
     var color = colors[rowIndex];
     if(!allowedColors.includes(color)) return;
-
-    var table = document.getElementById('table'+playerIndex);
-    var cell = table.rows[rowIndex].cells[colIndex].querySelector('input');
     if(boardData[color][colIndex]=='empty') return;
 
+    var table = document.getElementById('table'+playerIndex);
+    // Borrar el mismo número de otras casillas de los colores lanzados
     allowedColors.forEach(c=>{
         var rIndex = colors.indexOf(c);
         for(var j=0;j<10;j++){
@@ -267,22 +221,14 @@ function placeNumber(playerIndex,rowIndex,colIndex){
         }
     });
 
-    cell.value = lastRoll;
+    table.rows[rowIndex].cells[colIndex].querySelector('input').value = lastRoll;
     calculateScore(playerIndex);
 }
 
 function nextTurn(){
-    var table = document.getElementById('table'+currentPlayer);
-    var inputs = table.querySelectorAll('input');
-    inputs.forEach(i=>i.readOnly=true);
-
     document.getElementById("player"+currentPlayer).classList.remove("active");
     currentPlayer = (currentPlayer+1) % totalPlayers;
     document.getElementById("player"+currentPlayer).classList.add("active");
-
-    var tableNext = document.getElementById('table'+currentPlayer);
-    var inputsNext = tableNext.querySelectorAll('input');
-    inputsNext.forEach(i=>i.readOnly=false);
 
     lastRoll=null; rollColors=[];
     hasRolled=false;
