@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Qwinto multijugador final</title>
+<style>
+body { font-family: Arial; background: #f2f2f2; padding: 20px; }
+.panel { background: white; padding: 15px; margin-bottom: 15px; position: relative; }
+button { padding: 8px; margin-top: 10px; cursor: pointer; }
+.player { display: none; }
+.player.active { display: block; }
+.turn { font-weight: bold; margin-bottom: 10px; }
+table { border-collapse: collapse; margin-top: 10px; }
+td { width: 40px; height: 40px; border: 1px solid #999; text-align: center; vertical-align: middle; }
+.cell { width: 100%; height: 100%; position: relative; display: flex; justify-content: center; align-items: center; }
+.circle { width: 20px; height: 20px; border-radius: 50%; background: #666; }
+.hex { width: 20px; height: 20px; background: #f39c12; clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+.cell-input { position: absolute; width: 100%; height: 100%; text-align: center; border: none; background: transparent; font-weight: bold; font-size: 14px; cursor: pointer; }
+.orange { background: #ffd9b3; }
+.yellow { background: #fff3b0; }
+.blue { background: #cce5ff; }
+#startBtn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background-color: #28a745; 
+  color: white;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+}
+#startBtn:hover { background-color: #218838; }
+
+/* Botón de instrucciones destacado */
+button#showInstructions {
+    background-color: #ff9800;  /* color naranja brillante */
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 3px 5px rgba(0,0,0,0.3);
+}
+button#showInstructions:hover {
+    background-color: #e68900;  /* un poco más oscuro al pasar el mouse */
+}
+
+/* Instrucciones */
+#instructionsPanel {
+    display: none;
+    position: fixed;
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+    background: white;
+    border: 2px solid #444;
+    border-radius: 10px;
+    padding: 20px;
+    overflow-y: auto;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    z-index: 9999;
+}
+#instructionsPanel button {
+    margin-top: 20px;
+    background-color: #007bff;
+    color: white;
+}
+#instructionsPanel button:hover { background-color: #0056b3; }
+</style>
+</head>
+<body>
+
+<h2>Qwinto multijugador</h2>
+<button id="showInstructions" onclick="showInstructions()">Instrucciones</button>
+
+<div class="panel">
+<label><input type="checkbox" id="dOrange"> Dado naranja</label><br>
+<label><input type="checkbox" id="dYellow"> Dado amarillo</label><br>
+<label><input type="checkbox" id="dBlue"> Dado azul</label><br><br>
+<button id="rollBtn" onclick="roll()">Lanzar dados</button>
+<div id="result">Resultado: -</div>
+</div>
+
+<div class="panel">
+Jugadores:
+<select id="numPlayers">
+  <option value="2" selected>2</option>
+  <option value="3">3</option>
+  <option value="4">4</option>
+</select>
+<button id="startBtn" onclick="startGame()">Iniciar partida</button>
+</div>
+
+<div id="players"></div>
+
+<div class="panel">
+<button onclick="nextTurn()">Siguiente turno</button>
+</div>
+
+<!-- Panel de instrucciones -->
+<div id="instructionsPanel">
+<h3>Instrucciones del juego</h3>
+<p><strong>Objetivo:</strong> Completar filas y columnas de números en orden ascendente y sumar puntos en los exágonos.</p>
+<ul>
+<li>Selecciona los dados que quieras lanzar: naranja, amarillo y azul.</li>
+<li>Pulsa "Lanzar dados" una sola vez por turno.</li>
+<li>El resultado se puede colocar solo en las filas de los colores que has lanzado.</li>
+<li>Puedes mover el número dentro de las casillas permitidas mientras sea tu turno.</li>
+<li>Las filas deben estar en orden ascendente de izquierda a derecha y las columnas de arriba a abajo.</li>
+<li>No se pueden repetir números en la misma fila.</li>
+<li>Las casillas vacías son obligatorias, una por fila, y no se pueden rellenar.</li>
+<li>Los exágonos suman puntos solo si la columna está correctamente completada de arriba a abajo.</li>
+<li>Si la columna o la fila están mal, se aplican penalizaciones de -5 puntos según la regla correspondiente.</li>
+<li>Cada casilla rellenada suma 1 punto, independientemente de si es correcta o no.</li>
+<li>Después de colocar tu número, puedes cambiarlo mientras estés en tu turno; se fija al cambiar de turno.</li>
+<li>Pulsa "Siguiente turno" para pasar al siguiente jugador y desbloquear nueva tirada.</li>
+</ul>
+<p><strong>Gana el jugador con mayor puntuación.</strong></p>
+<p><strong>A PENSAR Y A DISFRUTAR !!</strong></p>
+<p style="margin-top:20px; font-size:0.9em; color:#555;"><em>Creado por Eirik García<br>de Sexto de Torre de la Llebre<br>Curso 2025/26</em></p>
+<button onclick="hideInstructions()">Regresar al juego</button>
+</div>
+
+<script>
+// Variables globales
+var currentPlayer = 0;
+var totalPlayers = 2;
+var playerNames = [];
+var boardData = []; 
+var lastRoll = null;
+var rollColors = []; 
+var hasRolled = false;
+
+// Funciones
+function showInstructions(){ document.getElementById("instructionsPanel").style.display="block"; }
+function hideInstructions(){ document.getElementById("instructionsPanel").style.display="none"; }
+
+function startGame() {
+    totalPlayers = parseInt(document.getElementById("numPlayers").value);
+    currentPlayer = 0;
+    playerNames = [];
+    boardData = generateBoard();
+    lastRoll = null;
+    rollColors = [];
+    hasRolled = false;
+
+    for (var i=0; i<totalPlayers; i++) {
+        var name = prompt("Nombre del jugador " + (i+1), "Jugador " + (i+1));
+        if(!name) name = "Jugador " + (i+1);
+        playerNames.push(name);
+    }
+
+    renderPlayers();
+    document.getElementById("result").innerText = "Resultado: -";
+}
+
+function generateBoard() {
+    var colors = ['orange','yellow','blue'];
+    var board = {};
+    var exagonCount = 5;
+
+    colors.forEach(c => board[c] = Array(10).fill('circle')); 
+
+    colors.forEach(c => {
+        var pos;
+        do { pos = Math.floor(Math.random()*10); } while(board[c][pos]!=='circle');
+        board[c][pos]='empty';
+    });
+
+    var exRemaining = exagonCount;
+    colors.forEach(c => {
+        var pos;
+        do { pos = Math.floor(Math.random()*10); } while(board[c][pos]!=='circle');
+        board[c][pos]='hex';
+        exRemaining--;
+    });
+    while(exRemaining>0){
+        var c = colors[Math.floor(Math.random()*3)];
+        var pos = Math.floor(Math.random()*10);
+        if(board[c][pos]=='circle'){ board[c][pos]='hex'; exRemaining--; }
+    }
+
+    return board;
+}
+
+function renderPlayers() {
+    var container = document.getElementById("players");
+    container.innerHTML = "";
+    for(var i=0;i<totalPlayers;i++){
+        var p = document.createElement("div");
+        p.className = "panel player" + (i===0?" active":"");
+        p.id = "player"+i;
+
+        var html = '<div class="turn">'+playerNames[i]+'</div><table id="table'+i+'">';
+        ['orange','yellow','blue'].forEach((color,rowIndex)=>{
+            html += '<tr class="'+color+'">';
+            for(var j=0;j<10;j++){
+                html += '<td><div class="cell">';
+                if(boardData[color][j]==='circle') html+='<div class="circle"></div>';
+                else if(boardData[color][j]==='hex') html+='<div class="hex"></div>';
+                html += '<input type="text" class="cell-input" onclick="placeNumber('+i+','+rowIndex+','+j+')" >';
+                html += '</div></td>';
+            }
+            html += '<td style="background:#ddd; font-weight:bold;" id="score_'+i+'_'+color+'">0</td>';
+            html += '</tr>';
+        });
+        html += '<tr><td colspan="11" style="background:#bbb; font-weight:bold;" id="total_'+i+'">0</td></tr>';
+        html += '</table>';
+        p.innerHTML = html;
+        container.appendChild(p);
+    }
+}
+
+function roll() {
+    if(hasRolled) return;
+    var sum = 0;
+    rollColors = [];
+    var text = [];
+
+    if (document.getElementById("dOrange").checked) {
+        var v = Math.floor(Math.random()*6)+1;
+        sum += v; text.push("Naranja: "+v); rollColors.push('orange');
+    }
+    if (document.getElementById("dYellow").checked) {
+        var v = Math.floor(Math.random()*6)+1;
+        sum += v; text.push("Amarillo: "+v); rollColors.push('yellow');
+    }
+    if (document.getElementById("dBlue").checked) {
+        var v = Math.floor(Math.random()*6)+1;
+        sum += v; text.push("Azul: "+v); rollColors.push('blue');
+    }
+
+    if(text.length===0){
+        document.getElementById("result").innerText="Selecciona al menos un dado";
+        lastRoll = null; rollColors=[];
+        return;
+    }
+    lastRoll = sum;
+    hasRolled = true;
+    document.getElementById("result").innerText=text.join(" | ")+" = "+sum;
+}
+
+function placeNumber(playerIndex,rowIndex,colIndex){
+    if(playerIndex!==currentPlayer) return;
+    if(!lastRoll) return;
+
+    var colors = ['orange','yellow','blue'];
+    var allowedColors = rollColors.length===3 ? colors : rollColors;
+    var color = colors[rowIndex];
+    if(!allowedColors.includes(color)) return;
+
+    var table = document.getElementById('table'+playerIndex);
+    var cell = table.rows[rowIndex].cells[colIndex].querySelector('input');
+    if(boardData[color][colIndex]=='empty') return;
+
+    allowedColors.forEach(c=>{
+        var rIndex = colors.indexOf(c);
+        for(var j=0;j<10;j++){
+            var cCell = table.rows[rIndex].cells[j].querySelector('input');
+            if(cCell.value==lastRoll) cCell.value="";
+        }
+    });
+
+    cell.value = lastRoll;
+    calculateScore(playerIndex);
+}
+
+function nextTurn(){
+    var table = document.getElementById('table'+currentPlayer);
+    var inputs = table.querySelectorAll('input');
+    inputs.forEach(i=>i.readOnly=true);
+
+    document.getElementById("player"+currentPlayer).classList.remove("active");
+    currentPlayer = (currentPlayer+1) % totalPlayers;
+    document.getElementById("player"+currentPlayer).classList.add("active");
+
+    var tableNext = document.getElementById('table'+currentPlayer);
+    var inputsNext = tableNext.querySelectorAll('input');
+    inputsNext.forEach(i=>i.readOnly=false);
+
+    lastRoll=null; rollColors=[];
+    hasRolled=false;
+    document.getElementById("result").innerText="Resultado: -";
+}
+
+function calculateScore(playerIndex){
+    var colors = ['orange','yellow','blue'];
+    var table = document.getElementById('table'+playerIndex);
+    var total = 0;
+    var rowValues = [];
+
+    colors.forEach((color,rowIndex)=>{
+        var row = table.rows[rowIndex];
+        var vals = [];
+        for(var j=0;j<10;j++){
+            var v = parseInt(row.cells[j].querySelector('input').value);
+            vals.push(isNaN(v)?null:v);
+        }
+        rowValues.push(vals);
+    });
+
+    var rowScores = [0,0,0];
+
+    colors.forEach((color,rowIndex)=>{
+        var vals = rowValues[rowIndex];
+        var filaFallos=0;
+
+        for(var j=0;j<vals.length;j++){
+            if(vals[j]==null) continue;
+            for(var k=0;k<j;k++){
+                if(vals[k]!=null && vals[k]>=vals[j]){
+                    filaFallos++;
+                    break; 
+                }
+            }
+        }
+
+        var rowScore=filaFallos*-5;
+        vals.forEach(v=>{ if(v!=null) rowScore+=1; });
+
+        for(var j=0;j<vals.length;j++){
+            if(boardData[color][j]=='hex' && vals[j]!=null){
+                var colComplete=true;
+                var colCorrect=true;
+
+                for(var k=0;k<3;k++){
+                    if(rowValues[k][j]==null) colComplete=false;
+                }
+
+                if(colComplete){
+                    for(var k=0;k<2;k++){
+                        if(rowValues[k][j]>=rowValues[k+1][j]) colCorrect=false;
+                    }
+                    if(colCorrect){
+                        rowScore += vals[j];
+                        if(filaFallos>0) rowScore -=5;
+                    } else {
+                        rowScore -=5;
+                    }
+                }
+            }
+        }
+
+        rowScores[rowIndex]=rowScore;
+        document.getElementById('score_'+playerIndex+'_'+color).innerText=rowScore;
+        total += rowScore;
+    });
+
+    document.getElementById('total_'+playerIndex).innerText=total;
+}
+</script>
+
+</body>
+</html>
