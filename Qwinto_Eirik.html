@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Qwinto multijugador</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  :root{
+    --orange:#f57c28;
+    --yellow:#ffd54a;
+    --purple:#6c3fbf;
+    --bg:#e0e0e0;
+    --sheet:#f5f5f5;
+    --line:#555;
+  }
+  *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif;}
+  body{
+    margin:0;
+    padding:10px;
+    background:var(--bg);
+    display:flex;
+    justify-content:center;
+  }
+  #wrapper{max-width:1100px;width:100%;}
+  h1{margin:4px 0 2px;font-size:1.3rem;}
+  #topBar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  #playersConfig{display:flex;flex-wrap:wrap;align-items:center;}
+  #playersConfig label{margin-right:8px;font-size:0.9rem;}
+  #currentInfo{font-size:0.9rem;}
+  input[type="number"]{width:48px;}
+  input.playerName{width:120px;padding:2px 4px;margin:0 4px;font-size:0.85rem;}
+
+  .playerSheet{
+    background:var(--sheet);
+    border-radius:16px;
+    padding:10px;
+    margin-bottom:10px;
+    box-shadow:0 0 8px rgba(0,0,0,0.25);
+    transition:opacity 0.3s;
+  }
+  .playerSheet.decided{opacity:0.6;}
+  .playerHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  .playerHeader span{font-weight:bold;font-size:0.95rem;}
+  .activeMark{font-size:0.8rem;color:#b00020;visibility:hidden;}
+  .active .activeMark{visibility:visible;}
+
+  .rowContainer{display:flex;align-items:center;margin:4px 0;}
+  .rowBar{display:flex;flex:1;padding:4px 8px;border-radius:10px;}
+  .rowBar.orange{background:var(--orange);}
+  .rowBar.yellow{background:var(--yellow);}
+  .rowBar.purple{background:var(--purple);}
+  .padLeft{width:40px;}
+
+  .cell{
+    width:40px;height:40px;margin:2px;position:relative;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .cell.readonly{cursor:default;}
+  .circle,.pentagon{
+    width:84%;height:84%;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,0.9);color:#000;font-weight:bold;font-size:0.9rem;
+  }
+  .circle{border-radius:50%;border:2px solid rgba(255,255,255,0.9);}
+  .pentagon{clip-path:polygon(50% 4%, 96% 38%, 80% 96%, 20% 96%, 4% 38%);border:2px solid rgba(255,255,255,0.9);}
+  .readonly .circle,.readonly .pentagon{background:rgba(255,255,255,0.2);}
+
+  .failsArea{display:flex;align-items:center;margin:6px 2px 2px;}
+  .failsArea span{margin-right:4px;font-size:0.8rem;}
+  .failBox{
+    width:30px;height:30px;margin-right:3px;border-radius:5px;border:2px dashed #c00;
+    background:#fff;display:flex;align-items:center;justify-content:center;font-size:1rem;color:#c00;
+  }
+
+  .scorePanel{margin-top:6px;background:#ececec;border-radius:8px;padding:4px;font-size:0.75rem;}
+  .scorePanel table{width:100%;border-collapse:collapse;}
+  .scorePanel th,.scorePanel td{border:1px solid #aaa;padding:2px;text-align:center;}
+
+  #globalPanel{background:#d4d4d4;border-radius:12px;padding:8px;margin-bottom:10px;font-size:0.9rem;}
+  #diceControls{display:flex;flex-wrap:wrap;align-items:center;}
+  .dieChoiceLabel{display:flex;align-items:center;margin-right:8px;font-size:0.85rem;}
+  .dieColorBox{width:18px;height:18px;border-radius:5px;margin-right:3px;}
+  .dieColorBox.orange{border:2px solid #f57c28;}
+  .dieColorBox.yellow{border:2px solid #ffd54a;}
+  .dieColorBox.purple{border:2px solid #6c3fbf;}
+
+  button{padding:4px 10px;margin:3px;border:none;border-radius:6px;background:#444;color:#fff;font-size:0.85rem;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  #diceResult{font-weight:bold;margin-left:4px;}
+  #message{margin-top:4px;min-height:1.1em;font-size:0.85rem;}
+  #statusLine{font-size:0.8rem;color:#555;margin-top:2px;}
+  .small{font-size:0.75rem;color:#555;}
+
+  #credit{
+    text-align:center;
+    margin-top:20px;
+    padding:12px;
+    background:linear-gradient(135deg, var(--orange), var(--yellow), var(--purple));
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    background-clip:text;
+    font-size:1.1rem;
+    font-weight:bold;
+    border-radius:12px;
+    box-shadow:0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  @media (max-width:720px){.cell{width:32px;height:32px;}.padLeft{width:30px;}}
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <h1>Qwinto multijugador</h1>
+
+  <div id="topBar">
+    <div id="playersConfig">
+      <label>Jugadores: <input type="number" id="numPlayers" min="1" max="4" value="2" /></label>
+      <button id="applyPlayers">Aplicar</button>
+    </div>
+    <div id="currentInfo">Turno de: <span id="currentPlayerName"></span></div>
+  </div>
+
+  <div id="globalPanel">
+    <div id="diceControls">
+      <span style="margin-right:6px;">Dados:</span>
+      <label class="dieChoiceLabel">
+        <div class="dieColorBox orange"></div><input type="checkbox" value="orange" class="dieChoice" /> Naranja
+      </label>
+      <label class="dieChoiceLabel">
+        <div class="dieColorBox yellow"></div><input type="checkbox" value="yellow" class="dieChoice" /> Amarillo
+      </label>
+      <label class="dieChoiceLabel">
+        <div class="dieColorBox purple"></div><input type="checkbox" value="purple" class="dieChoice" /> Lila
+      </label>
+      <button id="rollBtn">Lanzar dados</button>
+      <button id="failBtn" disabled>Fallo (activo)</button>
+      <select id="passSelect"></select>
+      <button id="passBtn" disabled>Pasar</button>
+      <button id="nextTurnBtn" disabled>Siguiente jugador</button>
+      <span>Resultado: <span id="diceResult">–</span></span>
+    </div>
+    <div id="message"></div>
+    <div id="statusLine">Pendientes: todos</div>
+    <div class="small">Una tirada por turno. Todos los jugadores pueden escribir o pasar. "Siguiente jugador" solo cuando todos hayan decidido.</div>
+  </div>
+
+  <div id="playersContainer"></div>
+
+  <!-- DEDICATORIA -->
+  <div id="credit">
+    🎲 Creado por Eirik García, de Sexto de Torre de la Llebre. Curso 2025/26 🎲
+  </div>
+</div>
+
+<script>
+const rowsConfig = {
+  orange:{color:"orange",len:9,empty:3,pent:[1,4]},
+  yellow:{color:"yellow",len:9,empty:4,pent:[6]},
+  purple:{color:"purple",len:9,empty:2,pent:[8]}
+};
+
+const verticalTriples = [
+  [{r:"orange",i:1},{r:"yellow",i:0},{r:"purple",i:0}],
+  [{r:"orange",i:2},{r:"yellow",i:1},{r:"purple",i:1}],
+  [{r:"orange",i:4},{r:"yellow",i:5},{r:"purple",i:3}],
+  [{r:"orange",i:5},{r:"yellow",i:6},{r:"purple",i:4}],
+  [{r:"orange",i:7},{r:"yellow",i:7},{r:"purple",i:8}]
+];
+
+function createEmptyState(){
+  const cells = {};
+  for(const row of Object.keys(rowsConfig)){
+    const cfg = rowsConfig[row];
+    for(let i=0;i<cfg.len;i++) cells[row+"-"+i] = null;
+  }
+  return {cells,fails:0,ended:false};
+}
+
+let players = [], currentPlayerIndex = 0, currentRoll = null, currentColors = [];
+
+const playersContainer = document.getElementById("playersContainer");
+const rollBtn = document.getElementById("rollBtn");
+const failBtn = document.getElementById("failBtn");
+const passBtn = document.getElementById("passBtn");
+const passSelect = document.getElementById("passSelect");
+const nextTurnBtn = document.getElementById("nextTurnBtn");
+const diceResultSpan = document.getElementById("diceResult");
+const messageEl = document.getElementById("message");
+const statusLine = document.getElementById("statusLine");
+
+function buildPlayers(num){
+  players = [];
+  playersContainer.innerHTML = "";
+  for(let p=0;p<num;p++){
+    const pState = createEmptyState();
+    const player = {id:p,name:"Jugador "+(p+1),state:pState,decided:false,elements:{}};
+    players.push(player);
+
+    const sheet = document.createElement("div");
+    sheet.className = "playerSheet";
+    sheet.dataset.pid = p;
+
+    const header = document.createElement("div");
+    header.className = "playerHeader";
+    header.innerHTML = `<span>${player.name}: </span><input class="playerName" value="${player.name}" /> <span class="activeMark">⬅ activo</span>`;
+    const nameInput = header.querySelector(".playerName");
+    nameInput.addEventListener("input",()=>{player.name = nameInput.value || "Jugador "+(p+1); updateCurrentInfo(); updatePassSelect();});
+
+    sheet.appendChild(header);
+
+    for(const rowName of Object.keys(rowsConfig)){
+      const cfg = rowsConfig[rowName];
+      const rowContainer = document.createElement("div");
+      rowContainer.className = "rowContainer";
+      const pad = document.createElement("div");
+      pad.className = "padLeft";
+      pad.textContent = rowName[0].toUpperCase();
+      rowContainer.appendChild(pad);
+      const rowBar = document.createElement("div");
+      rowBar.className = "rowBar "+rowName;
+      for(let i=0;i<cfg.len;i++){
+        const cell = document.createElement("div");
+        cell.className = "cell"+(i===cfg.empty?" readonly":"");
+        const inner = document.createElement("div");
+        inner.className = cfg.pent.includes(i) ? "pentagon" : "circle";
+        cell.appendChild(inner);
+        cell.dataset.row = rowName;
+        cell.dataset.idx = i;
+        cell.dataset.player = p;
+        cell.addEventListener("click",()=>onCellClick(player,cell));
+        rowBar.appendChild(cell);
+      }
+      rowContainer.appendChild(rowBar);
+      sheet.appendChild(rowContainer);
+    }
+
+    const failsArea = document.createElement("div");
+    failsArea.className = "failsArea";
+    failsArea.innerHTML = '<span>Fallo=-5:</span>';
+    const failBoxes = [];
+    for(let f=0;f<4;f++){
+      const fb = document.createElement("div");
+      fb.className = "failBox";
+      failsArea.appendChild(fb);
+      failBoxes.push(fb);
+    }
+    sheet.appendChild(failsArea);
+
+    const scorePanel = document.createElement("div");
+    scorePanel.className = "scorePanel";
+    scorePanel.innerHTML = `
+      <button class="scoreBtn">Puntos</button>
+      <table><thead><tr><th>Filas</th><th>Bonos</th><th>Fallos</th><th>Total</th></tr></thead>
+      <tbody><tr><td class="rowPts">0</td><td class="bonusPts">0</td><td class="failPts">0</td><td class="totalPts">0</td></tr></tbody></table>
+      <div class="small">Filas comp.: núm. más a la derecha | Incomp.: 1 por núm. | Col.3+pent.: valor pent. | Fallo: −5</div>`;
+    sheet.appendChild(scorePanel);
+
+    playersContainer.appendChild(sheet);
+
+    player.elements = {
+      sheet,failBoxes,
+      rowPts:scorePanel.querySelector(".rowPts"),
+      bonusPts:scorePanel.querySelector(".bonusPts"),
+      failPts:scorePanel.querySelector(".failPts"),
+      totalPts:scorePanel.querySelector(".totalPts")
+    };
+    scorePanel.querySelector(".scoreBtn").addEventListener("click",()=>computeScore(player));
+  }
+
+  updatePassSelect();
+  currentPlayerIndex = 0;
+  refreshActiveMarks();
+  updateCurrentInfo();
+  resetRound();
+}
+
+function updatePassSelect(){
+  passSelect.innerHTML = "";
+  players.forEach(pl=>{
+    if(!pl.state.ended){
+      const opt = document.createElement("option");
+      opt.value = pl.id;
+      opt.textContent = pl.name;
+      passSelect.appendChild(opt);
+    }
+  });
+}
+
+function refreshActiveMarks(){
+  players.forEach(p=>{
+    p.elements.sheet.classList.toggle("active",p.id===currentPlayerIndex);
+  });
+}
+
+function updateCurrentInfo(){
+  const cp = players[currentPlayerIndex];
+  document.getElementById("currentPlayerName").textContent = cp ? cp.name : "";
+}
+
+document.getElementById("applyPlayers").addEventListener("click",()=>{
+  const n = Math.min(4,Math.max(1,parseInt(document.getElementById("numPlayers").value||"2",10)));
+  document.getElementById("numPlayers").value = n;
+  buildPlayers(n);
+});
+buildPlayers(2);
+
+function setMessage(txt,isErr){
+  messageEl.textContent = txt || "";
+  messageEl.style.color = isErr ? "#b00020" : "#222";
+}
+
+function updateStatusLine(){
+  const pending = players.filter(p=>!p.state.ended && !p.decided).length;
+  const totalActive = players.filter(p=>!p.state.ended).length;
+  statusLine.textContent = pending===0 ? "¡Todos han decidido!" : `Pendientes: ${pending}/${totalActive}`;
+  nextTurnBtn.disabled = pending > 0;
+}
+
+function resetRound(){
+  currentRoll = null;
+  currentColors = [];
+  diceResultSpan.textContent = "–";
+  rollBtn.disabled = false;
+  failBtn.disabled = true;
+  passBtn.disabled = true;
+  nextTurnBtn.disabled = true;
+  players.forEach(p=>{
+    p.decided = false;
+    p.elements.sheet.classList.remove("decided");
+  });
+  updateStatusLine();
+  updatePassSelect();
+}
+
+rollBtn.addEventListener("click",()=>{
+  if(currentRoll !== null){
+    setMessage("Ya hay una tirada. Todos deben decidir primero.",true);
+    return;
+  }
+  const cp = players[currentPlayerIndex];
+  if(cp.state.ended){
+    setMessage("Jugador activo terminado. Pasa turno.",true);
+    return;
+  }
+  const selected = Array.from(document.querySelectorAll(".dieChoice:checked")).map(c=>c.value);
+  if(!selected.length){
+    setMessage("Selecciona dados.",true);
+    return;
+  }
+  let sum = 0;
+  selected.forEach(()=>sum += 1+Math.floor(Math.random()*6));
+  currentRoll = sum;
+  currentColors = selected;
+  diceResultSpan.textContent = sum+" ("+selected.join(",")+")";
+  rollBtn.disabled = true;
+  failBtn.disabled = false;
+  passBtn.disabled = false;
+  setMessage("Todos pueden escribir o pasar.",false);
+  updateStatusLine();
+});
+
+failBtn.addEventListener("click",()=>{
+  if(!currentRoll) return;
+  const cp = players[currentPlayerIndex];
+  registerFail(cp);
+});
+
+function registerFail(player){
+  const st = player.state;
+  if(st.fails>=4 || st.ended) return;
+  st.fails++;
+  player.elements.failBoxes[st.fails-1].textContent = "✗";
+  player.decided = true;
+  player.elements.sheet.classList.add("decided");
+  if(st.fails>=4) st.ended = true;
+  setMessage(player.name+" marca fallo.",true);
+  updateStatusLine();
+  if(players.every(p=>p.state.ended || p.decided)) nextTurn();
+}
+
+passBtn.addEventListener("click",()=>{
+  if(!currentRoll) return;
+  const id = parseInt(passSelect.value);
+  const pl = players.find(p=>p.id===id);
+  if(!pl || pl.state.ended || pl.decided){
+    setMessage("Ese jugador no puede pasar.",true);
+    return;
+  }
+  pl.decided = true;
+  pl.elements.sheet.classList.add("decided");
+  setMessage(pl.name+" pasa.",false);
+  updateStatusLine();
+  if(players.every(p=>p.state.ended || p.decided)) nextTurn();
+});
+
+function nextTurn(){
+  resetRound();
+  let tries = players.length;
+  do{
+    currentPlayerIndex = (currentPlayerIndex+1)%players.length;
+    tries--;
+  }while(players[currentPlayerIndex]?.state.ended && tries>0);
+  refreshActiveMarks();
+  updateCurrentInfo();
+  setMessage("Turno de "+players[currentPlayerIndex].name,false);
+}
+
+nextTurnBtn.addEventListener("click",nextTurn);
+
+function onCellClick(player,cell){
+  if(!currentRoll || player.state.ended || player.decided){
+    setMessage(player.decided ? player.name+" ya decidió" : "Primero lanza dados",true);
+    return;
+  }
+  const row = cell.dataset.row;
+  const idx = parseInt(cell.dataset.idx);
+  const cfg = rowsConfig[row];
+  if(idx===cfg.empty || !currentColors.includes(row) || player.state.cells[row+"-"+idx]){
+    setMessage("Casilla inválida.",true);
+    return;
+  }
+  const value = currentRoll;
+  if(!validInRow(player,row,idx,value) || !validInColumn(player,row,idx,value)){
+    setMessage("Movimiento inválido.",true);
+    return;
+  }
+  player.state.cells[row+"-"+idx] = value;
+  cell.firstChild.textContent = value;
+  player.decided = true;
+  player.elements.sheet.classList.add("decided");
+  if(fullRowsCount(player)>=2) player.state.ended = true;
+  setMessage(player.name+" coloca "+value,false);
+  updateStatusLine();
+}
+
+function validInRow(player,row,idx,value){
+  const cfg = rowsConfig[row], cells = player.state.cells;
+  for(let i=0;i<cfg.len;i++) if(cells[row+"-"+i]===value) return false;
+  for(let i=0;i<idx;i++) if(cells[row+"-"+i] && cells[row+"-"+i]>=value) return false;
+  for(let i=idx+1;i<cfg.len;i++) if(cells[row+"-"+i] && cells[row+"-"+i]<=value) return false;
+  return true;
+}
+
+function validInColumn(player,row,idx,value){
+  const cells = player.state.cells;
+  for(const triple of verticalTriples){
+    const here = triple.find(c=>c.r===row && c.i===idx);
+    if(here) for(const c of triple) if(cells[c.r+"-"+c.i]===value) return false;
+  }
+  return true;
+}
+
+function fullRowsCount(player){
+  let count=0;
+  for(const row of Object.keys(rowsConfig)){
+    const cfg = rowsConfig[row];
+    let filled=0;
+    for(let i=0;i<cfg.len;i++) if(i!==cfg.empty && player.state.cells[row+"-"+i]) filled++;
+    if(filled === cfg.len-1) count++;
+  }
+  return count;
+}
+
+function computeScore(player){
+  const rowPts = calcRowPoints(player), bonusPts = calcBonusPoints(player);
+  const failPts = player.state.fails * -5, total = rowPts + bonusPts + failPts;
+  player.elements.rowPts.textContent = rowPts;
+  player.elements.bonusPts.textContent = bonusPts;
+  player.elements.failPts.textContent = failPts;
+  player.elements.totalPts.textContent = total;
+}
+
+function calcRowPoints(player){
+  let sum=0;
+  for(const row of Object.keys(rowsConfig)){
+    const cfg = rowsConfig[row];
+    let filled=0, rightMost=0;
+    for(let i=0;i<cfg.len;i++) if(i!==cfg.empty && player.state.cells[row+"-"+i]){
+      filled++; rightMost = player.state.cells[row+"-"+i];
+    }
+    sum += filled === cfg.len-1 ? rightMost : filled;
+  }
+  return sum;
+}
+
+function calcBonusPoints(player){
+  let sum=0;
+  for(const triple of verticalTriples){
+    let complete=true, pent=null;
+    for(const c of triple){
+      const v = player.state.cells[c.r+"-"+c.i];
+      if(!v) complete=false;
+      if(rowsConfig[c.r].pent.includes(c.i)) pent = v;
+    }
+    if(complete && pent) sum += pent;
+  }
+  return sum;
+}
+</script>
+</body>
+</html>
