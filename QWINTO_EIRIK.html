@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Qwinto Multijugador - Mejorado</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  :root{
+    --orange:#d54e00;
+    --yellow:#e6b800;
+    --purple:#5a2d91;
+    --bg:#e0e0e0;
+    --sheet:#f5f5f5;
+    --line:#555;
+  }
+  *{box-sizing:border-box;font-family:system-ui,Arial,sans-serif;}
+  body{
+    margin:0;
+    padding:10px;
+    background:var(--bg);
+    display:flex;
+    justify-content:center;
+  }
+  #wrapper{max-width:1100px;width:100%;}
+  h1{margin:4px 0 2px;font-size:1.3rem;}
+  #topBar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:6px;}
+  #playersConfig{display:flex;flex-wrap:wrap;align-items:center;}
+  #playersConfig label{margin-right:8px;font-size:0.9rem;}
+  #currentInfo{font-size:0.9rem;font-weight:bold;}
+  input[type="number"]{width:48px;padding:4px;}
+  input.playerName{width:120px;padding:2px 4px;margin:0 4px;font-size:0.85rem;}
+
+  .playerSheet{
+    background:var(--sheet);
+    border-radius:16px;
+    padding:10px;
+    margin-bottom:10px;
+    box-shadow:0 0 8px rgba(0,0,0,0.25);
+    transition:all 0.3s;
+    position:relative;
+  }
+  .playerSheet.decided{opacity:0.6;}
+  .playerSheet.active{
+    box-shadow:0 0 16px rgba(255,165,0,0.6);
+    border:3px solid #ff8c00;
+  }
+  
+  .playerHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;}
+  .playerHeader span{font-weight:bold;font-size:0.95rem;}
+  .activeMark{font-size:0.9rem;color:#ff6b00;visibility:hidden;font-weight:bold;}
+  .active .activeMark{visibility:visible;}
+  
+  .decisionBadge{
+    position:absolute;
+    top:10px;
+    right:10px;
+    padding:4px 8px;
+    border-radius:8px;
+    font-size:0.75rem;
+    font-weight:bold;
+    display:none;
+  }
+  .decisionBadge.waiting{
+    display:block;
+    background:#ffeb3b;
+    color:#000;
+  }
+  .decisionBadge.decided{
+    display:block;
+    background:#4caf50;
+    color:#fff;
+  }
+  .decisionBadge.eliminated{
+    display:block;
+    background:#f44336;
+    color:#fff;
+  }
+
+  .rowContainer{display:flex;align-items:center;margin:4px 0;}
+  .rowBar{display:flex;flex:1;padding:4px 4px;border-radius:10px;position:relative;}
+  .rowBar.orange{background:var(--orange);}
+  .rowBar.yellow{background:var(--yellow);}
+  .rowBar.purple{background:var(--purple);}
+  .padLeft{width:0px;display:none;}
+  
+  .rowProgress{
+    position:absolute;
+    bottom:-2px;
+    left:8px;
+    right:8px;
+    height:3px;
+    background:rgba(255,255,255,0.3);
+    border-radius:2px;
+  }
+  .rowProgressBar{
+    height:100%;
+    background:rgba(255,255,255,0.9);
+    border-radius:2px;
+    transition:width 0.3s;
+  }
+
+  .cell{
+    width:44px;
+    height:44px;
+    margin:2px;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    transition:transform 0.2s, box-shadow 0.2s;
+  }
+  .cell:hover:not(.readonly){
+    transform:scale(1.1);
+  }
+  .cell.valid-highlight{
+    animation:pulse 1s infinite;
+  }
+  @keyframes pulse{
+    0%, 100%{box-shadow:0 0 0 0 rgba(76,175,80,0.7);}
+    50%{box-shadow:0 0 0 8px rgba(76,175,80,0);}
+  }
+  
+  .cell.readonly{cursor:not-allowed;}
+  .circle,.pentagon{
+    width:84%;height:84%;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,0.95);color:#000;font-weight:bold;font-size:1rem;
+    transition:all 0.2s;
+  }
+  .circle{border-radius:50%;border:2px solid rgba(255,255,255,0.9);}
+  .pentagon{clip-path:polygon(50% 4%, 96% 38%, 80% 96%, 20% 96%, 4% 38%);border:2px solid rgba(255,255,255,0.9);}
+  .readonly .circle,.readonly .pentagon{
+    background:rgba(255,255,255,0.2);
+    position:relative;
+  }
+  .readonly .circle::after,.readonly .pentagon::after{
+    content:"✗";
+    font-size:1.5rem;
+    color:rgba(0,0,0,0.3);
+  }
+
+  .failsArea{display:flex;align-items:center;margin:6px 2px 2px;flex-wrap:wrap;}
+  .failsArea span{margin-right:4px;font-size:0.8rem;}
+  .failBox{
+    width:32px;height:32px;margin-right:3px;border-radius:5px;border:2px dashed #c00;
+    background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.2rem;color:#c00;
+    transition:all 0.3s;
+  }
+  .failBox.marked{
+    background:#c00;
+    color:#fff;
+    border-style:solid;
+    animation:failShake 0.5s;
+  }
+  @keyframes failShake{
+    0%, 100%{transform:translateX(0);}
+    25%{transform:translateX(-5px);}
+    75%{transform:translateX(5px);}
+  }
+
+  .scorePanel{margin-top:6px;background:#ececec;border-radius:8px;padding:4px;font-size:0.8rem;}
+  .scorePanel table{width:100%;border-collapse:collapse;}
+  .scorePanel th,.scorePanel td{border:1px solid #aaa;padding:3px;text-align:center;}
+
+  #globalPanel{background:#d4d4d4;border-radius:12px;padding:8px;margin-bottom:10px;font-size:0.9rem;}
+  #diceControls{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}
+  .dieChoiceLabel{
+    display:flex;
+    align-items:center;
+    padding:6px 12px;
+    border-radius:8px;
+    background:#fff;
+    border:3px solid #ddd;
+    cursor:pointer;
+    transition:all 0.3s;
+    gap:6px;
+  }
+  .dieChoiceLabel:hover{
+    border-color:#999;
+    transform:translateY(-2px);
+    box-shadow:0 4px 8px rgba(0,0,0,0.2);
+  }
+  .dieChoiceLabel.checked{
+    border-color:#4caf50;
+    background:#e8f5e9;
+    font-weight:bold;
+  }
+  .dieColorBox{
+    width:24px;
+    height:24px;
+    border-radius:6px;
+    border:2px solid rgba(0,0,0,0.2);
+  }
+  .dieChoice{
+    width:20px;
+    height:20px;
+    cursor:pointer;
+    accent-color:#4caf50;
+  }
+  .dieColorBox.orange{background:var(--orange);}
+  .dieColorBox.yellow{background:var(--yellow);}
+  .dieColorBox.purple{background:var(--purple);}
+
+  button{padding:6px 12px;margin:3px;border:none;border-radius:6px;background:#444;color:#fff;font-size:0.85rem;cursor:pointer;transition:all 0.2s;}
+  button:hover:not(:disabled){background:#666;transform:translateY(-1px);}
+  button:disabled{
+    opacity:.4;
+    cursor:not-allowed;
+    background:#ccc;
+    color:#888;
+  }
+  button.primary{background:#4caf50;}
+  button.primary:hover:not(:disabled){background:#66bb6a;}
+  button.danger{background:#f44336;}
+  button.danger:hover:not(:disabled){background:#e57373;}
+  
+  #diceResultArea{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:6px 0;
+    padding:8px;
+    background:#fff;
+    border-radius:8px;
+    min-height:50px;
+  }
+  .diceVisual{
+    display:flex;
+    gap:4px;
+  }
+  .miniDie{
+    width:36px;
+    height:36px;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#fff;
+    font-weight:bold;
+    font-size:1.2rem;
+    box-shadow:0 2px 4px rgba(0,0,0,0.3);
+  }
+  .miniDie.orange{background:var(--orange);}
+  .miniDie.yellow{background:var(--yellow);}
+  .miniDie.purple{background:var(--purple);}
+  
+  #message{margin-top:4px;min-height:1.2em;font-size:0.9rem;font-weight:bold;}
+  #statusLine{
+    font-size:0.85rem;
+    margin-top:4px;
+    padding:6px;
+    background:#fff;
+    border-radius:6px;
+    text-align:center;
+  }
+  #statusLine.all-decided{
+    background:#4caf50;
+    color:#fff;
+  }
+  .small{font-size:0.75rem;color:#555;margin-top:4px;}
+
+  .playerActions{
+    display:flex;
+    gap:4px;
+    margin-top:6px;
+    flex-wrap:wrap;
+  }
+  
+  .nextTurnBtnVisible{
+    width:100%;
+    margin:8px 0;
+    padding:12px;
+    font-size:1.05rem;
+    background:#4caf50;
+    color:#fff;
+    font-weight:bold;
+    border:3px solid #2e7d32;
+  }
+  .nextTurnBtnVisible:hover:not(:disabled){
+    background:#66bb6a;
+    transform:translateY(-2px);
+  }
+  .nextTurnBtnVisible:disabled{
+    display:none;
+  }
+
+  .dicePanel{
+    background:#f9f9f9;
+    border-radius:12px;
+    padding:10px;
+    margin-bottom:8px;
+    border:2px solid #ddd;
+    transition:all 0.3s;
+  }
+  .dicePanel.active{
+    border-color:#ff8c00;
+    background:#fff8f0;
+  }
+  .dicePanel.collapsed{
+    padding:6px 10px;
+  }
+  .dicePanelExpanded{
+    display:block;
+  }
+  .dicePanelCollapsed{
+    display:none;
+  }
+  .collapsed .dicePanelExpanded{
+    display:none;
+  }
+  .collapsed .dicePanelCollapsed{
+    display:block;
+  }
+  .diceSelectionRow{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    align-items:center;
+    margin-bottom:8px;
+  }
+  .diceButtonsRow{
+    display:flex;
+    gap:6px;
+    flex-wrap:wrap;
+    margin-bottom:8px;
+  }
+  .resultCompact{
+    font-size:0.9rem;
+    color:#666;
+  }
+  .resultCompact strong{
+    color:#000;
+  }
+
+  #tutorialBtn{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    width:56px;
+    height:56px;
+    border-radius:50%;
+    background:#2196f3;
+    color:#fff;
+    font-size:1.8rem;
+    font-weight:bold;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow:0 4px 12px rgba(0,0,0,0.4);
+    z-index:1000;
+    border:3px solid #fff;
+  }
+  #tutorialBtn::before{
+    content:"ℹ️";
+    font-size:1.6rem;
+  }
+
+  .modal{
+    display:none;
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.7);
+    z-index:2000;
+    align-items:center;
+    justify-content:center;
+    padding:20px;
+  }
+  .modal.show{display:flex;}
+  .modalContent{
+    background:#fff;
+    border-radius:16px;
+    padding:20px;
+    max-width:500px;
+    max-height:80vh;
+    overflow-y:auto;
+  }
+  .modalContent h2{margin-top:0;}
+  .modalContent button{margin-top:10px;}
+
+  #credit{
+    text-align:center;
+    margin-top:20px;
+    padding:25px;
+    background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color:#fff;
+    font-size:1.3rem;
+    font-weight:bold;
+    border-radius:16px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.3);
+    border:3px solid #555;
+    position:relative;
+    overflow:hidden;
+  }
+  
+  .dice3d-container{
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    margin:15px 0;
+    perspective:800px;
+  }
+  
+  .dice3d{
+    width:50px;
+    height:50px;
+    position:relative;
+    transform-style:preserve-3d;
+    animation:rotateDice 4s infinite linear;
+  }
+  
+  @keyframes rotateDice{
+    0%{transform:rotateX(0deg) rotateY(0deg);}
+    100%{transform:rotateX(360deg) rotateY(360deg);}
+  }
+  
+  .dice3d-face{
+    position:absolute;
+    width:50px;
+    height:50px;
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    grid-template-rows:repeat(3, 1fr);
+    padding:6px;
+    gap:0;
+  }
+  
+  .dice3d-face .dot{
+    width:6px;
+    height:6px;
+    background:#fff;
+    border-radius:50%;
+    margin:auto;
+  }
+  
+  /* Los dados de color tienen puntos blancos */
+  .dice3d.orange .dice3d-face{background:var(--orange);}
+  .dice3d.yellow .dice3d-face{background:var(--yellow);}
+  .dice3d.purple .dice3d-face{background:var(--purple);}
+  
+  /* Posiciones de los puntos según número */
+  .dice3d-face.one .dot{grid-area:2/2;}
+  
+  .dice3d-face.two .dot:nth-child(1){grid-area:1/1;}
+  .dice3d-face.two .dot:nth-child(2){grid-area:3/3;}
+  
+  .dice3d-face.three .dot:nth-child(1){grid-area:1/1;}
+  .dice3d-face.three .dot:nth-child(2){grid-area:2/2;}
+  .dice3d-face.three .dot:nth-child(3){grid-area:3/3;}
+  
+  .dice3d-face.four .dot:nth-child(1){grid-area:1/1;}
+  .dice3d-face.four .dot:nth-child(2){grid-area:1/3;}
+  .dice3d-face.four .dot:nth-child(3){grid-area:3/1;}
+  .dice3d-face.four .dot:nth-child(4){grid-area:3/3;}
+  
+  .dice3d-face.five .dot:nth-child(1){grid-area:1/1;}
+  .dice3d-face.five .dot:nth-child(2){grid-area:1/3;}
+  .dice3d-face.five .dot:nth-child(3){grid-area:2/2;}
+  .dice3d-face.five .dot:nth-child(4){grid-area:3/1;}
+  .dice3d-face.five .dot:nth-child(5){grid-area:3/3;}
+  
+  .dice3d-face.six .dot:nth-child(1){grid-area:1/1;}
+  .dice3d-face.six .dot:nth-child(2){grid-area:1/3;}
+  .dice3d-face.six .dot:nth-child(3){grid-area:2/1;}
+  .dice3d-face.six .dot:nth-child(4){grid-area:2/3;}
+  .dice3d-face.six .dot:nth-child(5){grid-area:3/1;}
+  .dice3d-face.six .dot:nth-child(6){grid-area:3/3;}
+  
+  .dice3d-face.front{transform:translateZ(25px);}
+  .dice3d-face.back{transform:rotateY(180deg) translateZ(25px);}
+  .dice3d-face.right{transform:rotateY(90deg) translateZ(25px);}
+  .dice3d-face.left{transform:rotateY(-90deg) translateZ(25px);}
+  .dice3d-face.top{transform:rotateX(90deg) translateZ(25px);}
+  .dice3d-face.bottom{transform:rotateX(-90deg) translateZ(25px);}
+
+  @media (max-width:720px){
+    .cell{width:40px;height:40px;}
+    .padLeft{width:0px;display:none;}
+    #diceControls{flex-direction:column;align-items:stretch;}
+    .dieChoiceLabel{justify-content:center;}
+    .scorePanel{font-size:0.85rem;}
+    .small{font-size:0.8rem;}
+    .dice3d-container{gap:15px;}
+    .dice3d, .dice3d-face{width:40px;height:40px;}
+    .dice3d-face{padding:4px;}
+    .dice3d-face .dot{width:5px;height:5px;}
+    .dice3d-face.front{transform:translateZ(20px);}
+    .dice3d-face.back{transform:rotateY(180deg) translateZ(20px);}
+    .dice3d-face.right{transform:rotateY(90deg) translateZ(20px);}
+    .dice3d-face.left{transform:rotateY(-90deg) translateZ(20px);}
+    .dice3d-face.top{transform:rotateX(90deg) translateZ(20px);}
+    .dice3d-face.bottom{transform:rotateX(-90deg) translateZ(20px);}
+  }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <h1>🎲 Qwinto Multijugador - Edición Mejorada</h1>
+
+  <div id="topBar">
+    <div id="playersConfig">
+      <label>Jugadores: <input type="number" id="numPlayers" min="1" max="4" value="2" /></label>
+      <button id="applyPlayers">Aplicar</button>
+    </div>
+    <div id="currentInfo">Turno de: <span id="currentPlayerName"></span></div>
+  </div>
+
+  <div id="playersContainer"></div>
+
+  <!-- BOTÓN TUTORIAL -->
+  <button id="tutorialBtn" title="Instrucciones"></button>
+
+  <!-- MODAL TUTORIAL -->
+  <div id="tutorialModal" class="modal">
+    <div class="modalContent">
+      <h2>📖 Cómo jugar Qwinto</h2>
+      <p><strong>Objetivo:</strong> Completar filas y columnas para ganar puntos, evitando fallos.</p>
+      <h3>Turno:</h3>
+      <ol>
+        <li>El jugador activo elige 1, 2 o 3 dados y los lanza</li>
+        <li>TODOS pueden escribir la suma en UNA casilla de una fila cuyo color coincida</li>
+        <li>Si el activo NO puede/quiere escribir, DEBE marcar fallo (-5 puntos)</li>
+        <li>Los demás jugadores pueden pasar sin penalización</li>
+      </ol>
+      <h3>Reglas de colocación:</h3>
+      <ul>
+        <li>✅ Orden creciente izquierda a derecha en cada fila</li>
+        <li>✅ Sin repetir números en la misma fila</li>
+        <li>✅ Sin repetir números en la misma columna</li>
+        <li>❌ Hay UNA casilla por fila que nunca se rellena (marcada con ✗)</li>
+      </ul>
+      <h3>Fin del juego:</h3>
+      <p>La partida termina cuando alguien completa 2 filas O acumula 4 fallos.</p>
+      <h3>Puntuación:</h3>
+      <ul>
+        <li><strong>Fila completa:</strong> valor del número más a la derecha</li>
+        <li><strong>Fila incompleta:</strong> 1 punto por casilla rellena</li>
+        <li><strong>Columna completa (3 casillas):</strong> puntos del pentágono</li>
+        <li><strong>Fallo:</strong> -5 puntos</li>
+      </ul>
+      <button onclick="document.getElementById('tutorialModal').classList.remove('show')">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- MODAL FIN DE JUEGO -->
+  <div id="endGameModal" class="modal">
+    <div class="modalContent">
+      <h2>🎉 ¡Partida Terminada!</h2>
+      <div id="endGameMessage"></div>
+      <div id="finalScores"></div>
+      <button onclick="location.reload()">Nueva Partida</button>
+    </div>
+  </div>
+
+  <!-- DEDICATORIA CON DADOS 3D ANIMADOS -->
+  <div id="credit">
+    <div class="dice3d-container">
+      <div class="dice3d orange">
+        <div class="dice3d-face front one"><div class="dot"></div></div>
+        <div class="dice3d-face back two"><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face right three"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face left four"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face top five"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face bottom six"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      </div>
+      <div class="dice3d yellow">
+        <div class="dice3d-face front six"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face back five"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face right four"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face left three"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face top two"><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face bottom one"><div class="dot"></div></div>
+      </div>
+      <div class="dice3d purple">
+        <div class="dice3d-face front three"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face back four"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face right five"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face left six"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        <div class="dice3d-face top one"><div class="dot"></div></div>
+        <div class="dice3d-face bottom two"><div class="dot"></div><div class="dot"></div></div>
+      </div>
+    </div>
+    🎲 Creado por Eirik García de Sexto y Aina García de Cuarto de Torre de la Llebre<br>
+    Curso 2025/26 🎲
+  </div>
+</div>
+
+<script>
+const rowsConfig = {
+  orange:{color:"orange",len:9,empty:3,pent:[1,4]},
+  yellow:{color:"yellow",len:9,empty:4,pent:[6]},
+  purple:{color:"purple",len:9,empty:2,pent:[8]}
+};
+
+const verticalTriples = [
+  [{r:"orange",i:1},{r:"yellow",i:0},{r:"purple",i:0}],
+  [{r:"orange",i:2},{r:"yellow",i:1},{r:"purple",i:1}],
+  [{r:"orange",i:4},{r:"yellow",i:5},{r:"purple",i:3}],
+  [{r:"orange",i:5},{r:"yellow",i:6},{r:"purple",i:4}],
+  [{r:"orange",i:7},{r:"yellow",i:7},{r:"purple",i:8}]
+];
+
+function createEmptyState(){
+  const cells = {};
+  for(const row of Object.keys(rowsConfig)){
+    const cfg = rowsConfig[row];
+    for(let i=0;i<cfg.len;i++) cells[row+"-"+i] = null;
+  }
+  return {cells,fails:0,ended:false,completedRows:0};
+}
+
+let players = [], currentPlayerIndex = 0, currentRoll = null, currentColors = [], currentDiceValues = [];
+let gameStarted = false;
+
+const playersContainer = document.getElementById("playersContainer");
+const tutorialBtn = document.getElementById("tutorialBtn");
+
+tutorialBtn.addEventListener("click",()=>{
+  document.getElementById("tutorialModal").classList.add("show");
+});
+
+function buildPlayers(num){
+  players = [];
+  playersContainer.innerHTML = "";
+  for(let p=0;p<num;p++){
+    const pState = createEmptyState();
+    const player = {id:p,name:"Jugador "+(p+1),state:pState,decided:false,activePlayer:false,elements:{}};
+    players.push(player);
+
+    const sheet = document.createElement("div");
+    sheet.className = "playerSheet";
+    sheet.dataset.pid = p;
+
+    const badge = document.createElement("div");
+    badge.className = "decisionBadge waiting";
+    badge.textContent = "⏳ Esperando";
+    sheet.appendChild(badge);
+
+    const header = document.createElement("div");
+    header.className = "playerHeader";
+    header.innerHTML = `<span>${player.name}: </span><input class="playerName" value="${player.name}" /> <span class="activeMark">👈 ACTIVO</span>`;
+    const nameInput = header.querySelector(".playerName");
+    nameInput.addEventListener("input",()=>{
+      player.name = nameInput.value || "Jugador "+(p+1); 
+      updateCurrentInfo();
+      header.querySelector("span").textContent = player.name + ": ";
+    });
+    if(gameStarted) nameInput.disabled = true;
+
+    sheet.appendChild(header);
+
+    // Panel de dados individual
+    const dicePanel = document.createElement("div");
+    dicePanel.className = "dicePanel collapsed";
+    
+    // Versión expandida (solo para jugador activo)
+    const expandedContent = document.createElement("div");
+    expandedContent.className = "dicePanelExpanded";
+    expandedContent.innerHTML = `
+      <div class="diceSelectionRow">
+        <span style="font-weight:bold;font-size:0.85rem;">🎲 Selecciona dados:</span>
+        <label class="dieChoiceLabel player-dice-choice">
+          <div class="dieColorBox orange"></div>
+          <input type="checkbox" value="orange" class="dieChoice" data-player="${p}" />
+          <span>Naranja</span>
+        </label>
+        <label class="dieChoiceLabel player-dice-choice">
+          <div class="dieColorBox yellow"></div>
+          <input type="checkbox" value="yellow" class="dieChoice" data-player="${p}" />
+          <span>Amarillo</span>
+        </label>
+        <label class="dieChoiceLabel player-dice-choice">
+          <div class="dieColorBox purple"></div>
+          <input type="checkbox" value="purple" class="dieChoice" data-player="${p}" />
+          <span>Lila</span>
+        </label>
+      </div>
+      <div class="diceButtonsRow">
+        <button class="rollBtn primary">🎲 Lanzar Dados</button>
+      </div>
+      <div class="diceResultArea" style="background:#fff;border-radius:8px;padding:8px;min-height:50px;display:flex;align-items:center;gap:8px;">
+        <div class="diceVisual" style="display:flex;gap:4px;"></div>
+        <div>
+          <div><strong>Suma:</strong> <span class="diceResult">–</span></div>
+          <div style="font-size:0.75rem;color:#666;">Colores: <span class="diceColors">–</span></div>
+        </div>
+      </div>
+      <div class="message" style="margin-top:6px;min-height:1.2em;font-size:0.85rem;font-weight:bold;"></div>
+      <div class="statusLine" style="font-size:0.8rem;margin-top:4px;padding:4px;background:#fff;border-radius:6px;text-align:center;"></div>
+      <button class="nextTurnBtn" disabled style="width:100%;margin-top:6px;">➡️ Siguiente Jugador</button>
+      <div class="small" style="margin-top:4px;">📌 Jugador ACTIVO: debe escribir O marcar fallo (NO puede pasar). Los demás: pueden escribir o pasar.</div>
+    `;
+    dicePanel.appendChild(expandedContent);
+    
+    // Versión colapsada (para jugadores no activos)
+    const collapsedContent = document.createElement("div");
+    collapsedContent.className = "dicePanelCollapsed resultCompact";
+    collapsedContent.innerHTML = `🎲 Resultado: <strong class="compactResult">Esperando...</strong>`;
+    dicePanel.appendChild(collapsedContent);
+    
+    sheet.appendChild(dicePanel);
+
+    // Botón de siguiente jugador (fuera del panel, siempre visible cuando corresponde)
+    const nextTurnBtnGlobal = document.createElement("button");
+    nextTurnBtnGlobal.className = "nextTurnBtnVisible";
+    nextTurnBtnGlobal.textContent = "➡️ Siguiente Jugador";
+    nextTurnBtnGlobal.disabled = true;
+    nextTurnBtnGlobal.addEventListener("click", nextTurn);
+    sheet.appendChild(nextTurnBtnGlobal);
+
+    for(const rowName of Object.keys(rowsConfig)){
+      const cfg = rowsConfig[rowName];
+      const rowContainer = document.createElement("div");
+      rowContainer.className = "rowContainer";
+      const pad = document.createElement("div");
+      pad.className = "padLeft";
+      pad.textContent = rowName[0].toUpperCase() + rowName.slice(1);
+      rowContainer.appendChild(pad);
+      const rowBar = document.createElement("div");
+      rowBar.className = "rowBar "+rowName;
+      
+      const progress = document.createElement("div");
+      progress.className = "rowProgress";
+      const progressBar = document.createElement("div");
+      progressBar.className = "rowProgressBar";
+      progressBar.style.width = "0%";
+      progress.appendChild(progressBar);
+      rowBar.appendChild(progress);
+      
+      for(let i=0;i<cfg.len;i++){
+        const cell = document.createElement("div");
+        cell.className = "cell"+(i===cfg.empty?" readonly":"");
+        const inner = document.createElement("div");
+        inner.className = cfg.pent.includes(i) ? "pentagon" : "circle";
+        cell.appendChild(inner);
+        cell.dataset.row = rowName;
+        cell.dataset.idx = i;
+        cell.dataset.player = p;
+        if(i !== cfg.empty){
+          cell.addEventListener("click",()=>onCellClick(player,cell));
+        }
+        rowBar.appendChild(cell);
+      }
+      rowContainer.appendChild(rowBar);
+      sheet.appendChild(rowContainer);
+    }
+
+    const failsArea = document.createElement("div");
+    failsArea.className = "failsArea";
+    failsArea.innerHTML = '<span>Fallos (−5 cada uno):</span>';
+    const failBoxes = [];
+    for(let f=0;f<4;f++){
+      const fb = document.createElement("div");
+      fb.className = "failBox";
+      failsArea.appendChild(fb);
+      failBoxes.push(fb);
+    }
+    sheet.appendChild(failsArea);
+
+    const actions = document.createElement("div");
+    actions.className = "playerActions";
+    
+    const failBtnPlayer = document.createElement("button");
+    failBtnPlayer.className = "danger";
+    failBtnPlayer.textContent = "✗ Marcar Fallo";
+    failBtnPlayer.disabled = true;
+    failBtnPlayer.addEventListener("click",()=>playerFail(player));
+    actions.appendChild(failBtnPlayer);
+    
+    const passBtn = document.createElement("button");
+    passBtn.textContent = "⏭️ Pasar";
+    passBtn.disabled = true;
+    passBtn.addEventListener("click",()=>playerPass(player));
+    actions.appendChild(passBtn);
+    
+    sheet.appendChild(actions);
+
+    const scorePanel = document.createElement("div");
+    scorePanel.className = "scorePanel";
+    scorePanel.innerHTML = `
+      <button class="scoreBtn">📊 Calcular Puntos</button>
+      <table><thead><tr><th>Filas</th><th>Bonos</th><th>Fallos</th><th>Total</th></tr></thead>
+      <tbody><tr><td class="rowPts">0</td><td class="bonusPts">0</td><td class="failPts">0</td><td class="totalPts">0</td></tr></tbody></table>
+      <div class="small">💡 Fila comp.: núm. derecha | Incomp.: 1/núm. | Col.3: pent. | Fallo: −5</div>`;
+    sheet.appendChild(scorePanel);
+
+    playersContainer.appendChild(sheet);
+
+    // Obtener referencias a elementos del panel de dados
+    const rollBtn = dicePanel.querySelector(".rollBtn");
+    const nextTurnBtn = dicePanel.querySelector(".nextTurnBtn");
+    const diceVisual = dicePanel.querySelector(".diceVisual");
+    const diceResultSpan = dicePanel.querySelector(".diceResult");
+    const diceColorsSpan = dicePanel.querySelector(".diceColors");
+    const messageEl = dicePanel.querySelector(".message");
+    const statusLineEl = dicePanel.querySelector(".statusLine");
+    const compactResult = dicePanel.querySelector(".compactResult");
+    const diceChoices = dicePanel.querySelectorAll(".dieChoice");
+
+    player.elements = {
+      sheet,failBoxes,badge,passBtn,failBtnPlayer,dicePanel,
+      rollBtn,nextTurnBtn,nextTurnBtnGlobal,diceVisual,diceResultSpan,diceColorsSpan,messageEl,statusLineEl,compactResult,diceChoices,
+      rowPts:scorePanel.querySelector(".rowPts"),
+      bonusPts:scorePanel.querySelector(".bonusPts"),
+      failPts:scorePanel.querySelector(".failPts"),
+      totalPts:scorePanel.querySelector(".totalPts")
+    };
+    
+    // Event listeners para los checkboxes de dados
+    diceChoices.forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const label = this.closest('.dieChoiceLabel');
+        if(this.checked) {
+          label.classList.add('checked');
+        } else {
+          label.classList.remove('checked');
+        }
+      });
+    });
+    
+    // Event listener para lanzar dados
+    rollBtn.addEventListener("click", () => onRollDice(player));
+    
+    // Event listener para siguiente turno
+    nextTurnBtn.addEventListener("click", nextTurn);
+    
+    scorePanel.querySelector(".scoreBtn").addEventListener("click",()=>computeScore(player));
+  }
+
+  currentPlayerIndex = 0;
+  refreshActiveMarks();
+  updateCurrentInfo();
+  resetRound();
+  saveGame();
+}
+
+function updateAllPlayers(){
+  const cp = players[currentPlayerIndex];
+  players.forEach(p => updateStatusLine(p));
+}
+
+function refreshActiveMarks(){
+  players.forEach(p=>{
+    p.activePlayer = p.id === currentPlayerIndex;
+    p.elements.sheet.classList.toggle("active", p.activePlayer);
+  });
+  updatePanelsVisibility();
+}
+
+function updateCurrentInfo(){
+  const cp = players[currentPlayerIndex];
+  document.getElementById("currentPlayerName").textContent = cp ? cp.name : "";
+}
+
+function updateBadges(){
+  players.forEach(p=>{
+    const badge = p.elements.badge;
+    badge.className = "decisionBadge";
+    if(p.state.ended){
+      badge.classList.add("eliminated");
+      badge.textContent = p.state.completedRows >= 2 ? "🏁 Terminó" : "☠️ Eliminado";
+    }else if(p.decided){
+      badge.classList.add("decided");
+      badge.textContent = "✓ Decidió";
+    }else if(currentRoll !== null){
+      badge.classList.add("waiting");
+      badge.textContent = "⏳ Pensando";
+    }else{
+      badge.style.display = "none";
+    }
+  });
+}
+
+function updateRowProgress(){
+  players.forEach(player=>{
+    for(const rowName of Object.keys(rowsConfig)){
+      const cfg = rowsConfig[rowName];
+      let filled = 0;
+      for(let i=0;i<cfg.len;i++){
+        if(i !== cfg.empty && player.state.cells[rowName+"-"+i]) filled++;
+      }
+      const percent = (filled / (cfg.len - 1)) * 100;
+      const rowBar = player.elements.sheet.querySelector(`.rowBar.${rowName}`);
+      const progressBar = rowBar.querySelector(".rowProgressBar");
+      progressBar.style.width = percent + "%";
+    }
+  });
+}
+
+document.getElementById("applyPlayers").addEventListener("click",()=>{
+  if(gameStarted && !confirm("¿Reiniciar la partida con nuevo número de jugadores?")) return;
+  const n = Math.min(4,Math.max(1,parseInt(document.getElementById("numPlayers").value||"2",10)));
+  document.getElementById("numPlayers").value = n;
+  gameStarted = false;
+  buildPlayers(n);
+});
+
+document.getElementById("numPlayers").addEventListener("input",function(){
+  const val = parseInt(this.value);
+  if(val < 1) this.value = 1;
+  if(val > 4) this.value = 4;
+});
+
+buildPlayers(2);
+
+function setMessage(player, txt, isErr){
+  if(player && player.elements && player.elements.messageEl){
+    player.elements.messageEl.textContent = txt || "";
+    player.elements.messageEl.style.color = isErr ? "#f44336" : "#4caf50";
+  }
+}
+
+function updateStatusLine(player){
+  if(!player || !player.elements || !player.elements.statusLineEl) return;
+  
+  const pending = players.filter(p=>!p.state.ended && !p.decided).length;
+  const totalActive = players.filter(p=>!p.state.ended).length;
+  
+  if(currentRoll === null){
+    player.elements.statusLineEl.textContent = "Esperando que se lancen los dados...";
+    player.elements.statusLineEl.className = "";
+  }else if(pending === 0){
+    player.elements.statusLineEl.textContent = "✅ ¡Todos han decidido! Haz clic en 'Siguiente Jugador'";
+    player.elements.statusLineEl.className = "all-decided";
+    player.elements.statusLineEl.style.background = "#4caf50";
+    player.elements.statusLineEl.style.color = "#fff";
+  }else{
+    player.elements.statusLineEl.textContent = `Pendientes de decidir: ${pending}/${totalActive}`;
+    player.elements.statusLineEl.className = "";
+    player.elements.statusLineEl.style.background = "#fff";
+    player.elements.statusLineEl.style.color = "#000";
+  }
+  
+  const shouldEnable = pending === 0 && currentRoll !== null;
+  if(player.elements.nextTurnBtn){
+    player.elements.nextTurnBtn.disabled = !shouldEnable;
+  }
+  if(player.elements.nextTurnBtnGlobal){
+    player.elements.nextTurnBtnGlobal.disabled = !shouldEnable;
+  }
+}
+
+function resetRound(){
+  currentRoll = null;
+  currentColors = [];
+  currentDiceValues = [];
+  
+  players.forEach(p=>{
+    p.decided = false;
+    p.elements.sheet.classList.remove("decided");
+    p.elements.passBtn.disabled = true;
+    p.elements.failBtnPlayer.disabled = true;
+    
+    // Actualizar panel de dados
+    if(p.elements.diceResultSpan) p.elements.diceResultSpan.textContent = "–";
+    if(p.elements.diceColorsSpan) p.elements.diceColorsSpan.textContent = "–";
+    if(p.elements.diceVisual) p.elements.diceVisual.innerHTML = "";
+    if(p.elements.compactResult) p.elements.compactResult.textContent = "Esperando...";
+    if(p.elements.rollBtn) p.elements.rollBtn.disabled = false;
+    if(p.elements.nextTurnBtn) p.elements.nextTurnBtn.disabled = true;
+    if(p.elements.nextTurnBtnGlobal) p.elements.nextTurnBtnGlobal.disabled = true;
+    if(p.elements.messageEl) p.elements.messageEl.textContent = "";
+    
+    // Desmarcar checkboxes
+    if(p.elements.diceChoices){
+      p.elements.diceChoices.forEach(cb => {
+        cb.checked = false;
+        cb.disabled = false;
+        const label = cb.closest('.dieChoiceLabel');
+        if(label) label.classList.remove('checked');
+      });
+    }
+  });
+  
+  clearValidHighlights();
+  updateBadges();
+  updatePanelsVisibility();
+}
+
+function updatePanelsVisibility(){
+  players.forEach(p => {
+    if(p.elements.dicePanel){
+      if(p.id === currentPlayerIndex){
+        p.elements.dicePanel.classList.remove('collapsed');
+        p.elements.dicePanel.classList.add('active');
+      }else{
+        p.elements.dicePanel.classList.add('collapsed');
+        p.elements.dicePanel.classList.remove('active');
+      }
+    }
+  });
+}
+
+function onRollDice(player){
+  if(currentRoll !== null){
+    setMessage(player, "❌ Ya hay una tirada. Espera a que todos decidan.",true);
+    return;
+  }
+  
+  if(player.id !== currentPlayerIndex){
+    setMessage(player, "❌ No es tu turno.",true);
+    return;
+  }
+  
+  if(player.state.ended){
+    setMessage(player, "❌ Ya terminaste la partida.",true);
+    return;
+  }
+  
+  const selected = Array.from(player.elements.diceChoices)
+    .filter(cb => cb.checked)
+    .map(cb => cb.value);
+  
+  if(!selected.length){
+    setMessage(player, "❌ Selecciona al menos un dado.",true);
+    return;
+  }
+  
+  gameStarted = true;
+  players.forEach(p=>{
+    const nameInput = p.elements.sheet.querySelector(".playerName");
+    if(nameInput) nameInput.disabled = true;
+  });
+  
+  let sum = 0;
+  const diceVals = [];
+  selected.forEach(color=>{
+    const val = 1+Math.floor(Math.random()*6);
+    diceVals.push({color,value:val});
+    sum += val;
+  });
+  
+  currentRoll = sum;
+  currentColors = selected;
+  currentDiceValues = diceVals;
+  
+  // Mapeo de colores a abreviaturas en castellano
+  const colorMap = {
+    'orange': 'Nar',
+    'yellow': 'Ama', 
+    'purple': 'Lil'
+  };
+  
+  // Actualizar todos los paneles
+  players.forEach(p => {
+    if(p.elements.diceResultSpan) p.elements.diceResultSpan.textContent = sum;
+    if(p.elements.diceColorsSpan) p.elements.diceColorsSpan.textContent = selected.map(c=>c[0].toUpperCase()+c.slice(1)).join(", ");
+    if(p.elements.compactResult) p.elements.compactResult.textContent = `${sum} (${selected.map(c=>colorMap[c]).join(", ")})`;
+    
+    if(p.elements.diceVisual){
+      p.elements.diceVisual.innerHTML = "";
+      diceVals.forEach(d=>{
+        const die = document.createElement("div");
+        die.className = "miniDie " + d.color;
+        die.textContent = d.value;
+        p.elements.diceVisual.appendChild(die);
+      });
+    }
+    
+    if(p.elements.rollBtn) p.elements.rollBtn.disabled = true;
+    if(p.elements.diceChoices){
+      p.elements.diceChoices.forEach(cb => cb.disabled = true);
+    }
+    
+    if(!p.state.ended){
+      // El jugador activo NO puede pasar (debe escribir o marcar fallo)
+      // Los demás jugadores SÍ pueden pasar libremente
+      p.elements.passBtn.disabled = (p.id === currentPlayerIndex);
+      p.elements.failBtnPlayer.disabled = !(p.id === currentPlayerIndex);
+    }
+    
+    updateStatusLine(p);
+  });
+  
+  highlightValidCells();
+  setMessage(player, `🎲 Resultado: ${sum}. Jugador activo debe escribir o marcar fallo. Los demás pueden escribir o pasar.`, false);
+  updateBadges();
+}
+
+function registerFail(player){
+  const st = player.state;
+  if(st.fails>=4 || st.ended) return;
+  
+  st.fails++;
+  const box = player.elements.failBoxes[st.fails-1];
+  box.textContent = "✗";
+  box.classList.add("marked");
+  
+  player.decided = true;
+  player.elements.sheet.classList.add("decided");
+  player.elements.passBtn.disabled = true;
+  player.elements.failBtnPlayer.disabled = true;
+  
+  if(st.fails>=4){
+    st.ended = true;
+    setMessage(player, `☠️ ${player.name} acumula 4 fallos y queda eliminado.`,true);
+    checkEndGame();
+  }else{
+    setMessage(player, `⚠️ ${player.name} marca fallo #${st.fails}.`,true);
+  }
+  
+  updateAllPlayers();
+  updateBadges();
+  saveGame();
+  
+  // Actualizar highlights para el siguiente jugador
+  clearValidHighlights();
+  highlightValidCells();
+  
+  if(players.every(p=>p.state.ended || p.decided)){
+    setTimeout(()=>nextTurn(),1500);
+  }
+}
+
+function playerFail(player){
+  if(!currentRoll || player.state.ended || player.decided){
+    setMessage(player, "❌ No puedes marcar fallo en este momento.",true);
+    return;
+  }
+  
+  // Solo el jugador activo puede marcar fallo
+  if(player.id !== currentPlayerIndex){
+    setMessage(player, "❌ Solo el jugador activo puede marcar fallo. Los demás pueden pasar sin penalización.",true);
+    return;
+  }
+  
+  registerFail(player);
+}
+
+function playerPass(player){
+  if(!currentRoll || player.state.ended || player.decided){
+    setMessage(player, "❌ No puedes pasar en este momento.",true);
+    return;
+  }
+  
+  // El jugador activo NO puede pasar - debe escribir o marcar fallo
+  if(player.id === currentPlayerIndex){
+    setMessage(player, "❌ Como jugador activo, debes ESCRIBIR un número o MARCAR FALLO. No puedes pasar.",true);
+    return;
+  }
+  
+  player.decided = true;
+  player.elements.sheet.classList.add("decided");
+  player.elements.passBtn.disabled = true;
+  player.elements.failBtnPlayer.disabled = true;
+  
+  setMessage(player, `⏭️ ${player.name} pasa.`,false);
+  updateAllPlayers();
+  updateBadges();
+  saveGame();
+  
+  // Actualizar highlights para el siguiente jugador
+  clearValidHighlights();
+  highlightValidCells();
+  
+  if(players.every(p=>p.state.ended || p.decided)){
+    setTimeout(()=>nextTurn(),1500);
+  }
+}
+
+function nextTurn(){
+  resetRound();
+  let tries = players.length;
+  do{
+    currentPlayerIndex = (currentPlayerIndex+1)%players.length;
+    tries--;
+  }while(players[currentPlayerIndex]?.state.ended && tries>0);
+  
+  if(tries === 0){
+    endGame();
+    return;
+  }
+  
+  refreshActiveMarks();
+  updateCurrentInfo();
+  const cp = players[currentPlayerIndex];
+  setMessage(cp, `➡️ Turno de ${cp.name}`,false);
+  saveGame();
+}
+
+function clearValidHighlights(){
+  document.querySelectorAll(".cell.valid-highlight").forEach(c=>c.classList.remove("valid-highlight"));
+}
+
+function highlightValidCells(){
+  clearValidHighlights();
+  if(!currentRoll) return;
+  
+  // Encontrar el primer jugador que aún no ha decidido, empezando por el activo
+  let playerToHighlight = null;
+  
+  // Primero intentar con el jugador activo
+  const activePlayer = players[currentPlayerIndex];
+  if(!activePlayer.state.ended && !activePlayer.decided){
+    playerToHighlight = activePlayer;
+  } else {
+    // Si el activo ya decidió, buscar el siguiente en orden circular
+    for(let i = 1; i < players.length; i++){
+      const nextIndex = (currentPlayerIndex + i) % players.length;
+      const nextPlayer = players[nextIndex];
+      if(!nextPlayer.state.ended && !nextPlayer.decided){
+        playerToHighlight = nextPlayer;
+        break;
+      }
+    }
+  }
+  
+  // Si no se encontró ninguno, no resaltar nada
+  if(!playerToHighlight) return;
+  
+  // Resaltar solo para el jugador encontrado
+  const sheet = playerToHighlight.elements.sheet;
+  for(const rowName of Object.keys(rowsConfig)){
+    if(!currentColors.includes(rowName)) continue;
+    
+    const cfg = rowsConfig[rowName];
+    for(let i=0;i<cfg.len;i++){
+      if(i === cfg.empty) continue;
+      if(playerToHighlight.state.cells[rowName+"-"+i]) continue;
+      
+      if(validInRow(playerToHighlight,rowName,i,currentRoll) && validInColumn(playerToHighlight,rowName,i,currentRoll)){
+        const cell = sheet.querySelector(`.cell[data-row="${rowName}"][data-idx="${i}"]`);
+        if(cell) cell.classList.add("valid-highlight");
+      }
+    }
+  }
+}
+
+function onCellClick(player,cell){
+  if(!currentRoll || player.state.ended || player.decided){
+    if(player.decided){
+      setMessage(player, `❌ ${player.name} ya decidió.`,true);
+    }else{
+      setMessage(player, "❌ Primero lanza los dados.",true);
+    }
+    return;
+  }
+  
+  const row = cell.dataset.row;
+  const idx = parseInt(cell.dataset.idx);
+  const cfg = rowsConfig[row];
+  
+  if(idx === cfg.empty){
+    setMessage(player, "❌ Esta casilla nunca se rellena.",true);
+    return;
+  }
+  
+  if(!currentColors.includes(row)){
+    setMessage(player, `❌ No se tiró el dado ${row}. Solo puedes escribir en: ${currentColors.join(", ")}`,true);
+    return;
+  }
+  
+  if(player.state.cells[row+"-"+idx]){
+    setMessage(player, "❌ Esta casilla ya está ocupada.",true);
+    return;
+  }
+  
+  const value = currentRoll;
+  
+  if(!validInRow(player,row,idx,value)){
+    setMessage(player, "❌ Rompe el orden creciente o repite número en la fila.",true);
+    return;
+  }
+  
+  if(!validInColumn(player,row,idx,value)){
+    setMessage(player, "❌ Repite número en la columna.",true);
+    return;
+  }
+  
+  player.state.cells[row+"-"+idx] = value;
+  cell.firstChild.textContent = value;
+  player.decided = true;
+  player.elements.sheet.classList.add("decided");
+  player.elements.passBtn.disabled = true;
+  player.elements.failBtnPlayer.disabled = true;
+  
+  const completedRows = fullRowsCount(player);
+  player.state.completedRows = completedRows;
+  
+  if(completedRows >= 2){
+    player.state.ended = true;
+    setMessage(player, `🎉 ${player.name} completa 2 filas y termina la partida!`,false);
+    checkEndGame();
+  }else{
+    setMessage(player, `✅ ${player.name} coloca ${value} en fila ${row}.`,false);
+  }
+  
+  updateRowProgress();
+  updateAllPlayers();
+  updateBadges();
+  clearValidHighlights();
+  
+  // Actualizar highlights para el siguiente jugador
+  highlightValidCells();
+  
+  saveGame();
+  
+  if(players.every(p=>p.state.ended || p.decided)){
+    setTimeout(()=>nextTurn(),1500);
+  }
+}
+
+function validInRow(player,row,idx,value){
+  const cfg = rowsConfig[row], cells = player.state.cells;
+  
+  for(let i=0;i<cfg.len;i++){
+    if(cells[row+"-"+i]===value) return false;
+  }
+  
+  for(let i=0;i<idx;i++){
+    if(cells[row+"-"+i] && cells[row+"-"+i]>=value) return false;
+  }
+  
+  for(let i=idx+1;i<cfg.len;i++){
+    if(cells[row+"-"+i] && cells[row+"-"+i]<=value) return false;
+  }
+  
+  return true;
+}
+
+function validInColumn(player,row,idx,value){
+  const cells = player.state.cells;
+  for(const triple of verticalTriples){
+    const here = triple.find(c=>c.r===row && c.i===idx);
+    if(here){
+      for(const c of triple){
+        if(cells[c.r+"-"+c.i]===value) return false;
+      }
+    }
+  }
+  return true;
+}
+
+function fullRowsCount(player){
+  let count=0;
+  for(const row of Object.keys(rowsConfig)){
+    const cfg = rowsConfig[row];
+    let filled=0;
+    for(let i=0;i<cfg.len;i++){
+      if(i!==cfg.empty && player.state.cells[row+"-"+i]) filled++;
+    }
+    if(filled === cfg.len-1) count++;
+  }
+  return count;
+}
+
+function checkEndGame(){
+  const anyCompleted = players.some(p=>p.state.completedRows >= 2);
+  const allEnded = players.every(p=>p.state.ended);
+  
+  if(anyCompleted || allEnded){
+    setTimeout(()=>endGame(),2000);
+  }
+}
+
+function endGame(){
+  players.forEach(p=>computeScore(p));
+  
+  const scores = players.map(p=>({
+    name:p.name,
+    total:parseInt(p.elements.totalPts.textContent)
+  })).sort((a,b)=>b.total - a.total);
+  
+  const winner = scores[0];
+  
+  let msg = `<h3>🏆 ¡${winner.name} gana con ${winner.total} puntos!</h3>`;
+  msg += "<h4>Clasificación final:</h4><ol>";
+  scores.forEach((s,i)=>{
+    msg += `<li><strong>${s.name}:</strong> ${s.total} puntos</li>`;
+  });
+  msg += "</ol>";
+  
+  document.getElementById("endGameMessage").innerHTML = msg;
+  document.getElementById("endGameModal").classList.add("show");
+  
+  localStorage.removeItem("qwintoSave");
+}
+
+function computeScore(player){
+  const rowPts = calcRowPoints(player);
+  const bonusPts = calcBonusPoints(player);
+  const failPts = player.state.fails * -5;
+  const total = rowPts + bonusPts + failPts;
+  
+  player.elements.rowPts.textContent = rowPts;
+  player.elements.bonusPts.textContent = bonusPts;
+  player.elements.failPts.textContent = failPts;
+  player.elements.totalPts.textContent = total;
+}
+
+function calcRowPoints(player){
+  let sum=0;
+  for(const row of Object.keys(rowsConfig)){
+    const cfg = rowsConfig[row];
+    let filled=0, rightMost=0;
+    for(let i=0;i<cfg.len;i++){
+      if(i!==cfg.empty && player.state.cells[row+"-"+i]){
+        filled++;
+        rightMost = player.state.cells[row+"-"+i];
+      }
+    }
+    sum += filled === cfg.len-1 ? rightMost : filled;
+  }
+  return sum;
+}
+
+function calcBonusPoints(player){
+  let sum=0;
+  for(const triple of verticalTriples){
+    let complete=true, pent=null;
+    for(const c of triple){
+      const v = player.state.cells[c.r+"-"+c.i];
+      if(!v) complete=false;
+      if(rowsConfig[c.r].pent.includes(c.i)) pent = v;
+    }
+    if(complete && pent) sum += pent;
+  }
+  return sum;
+}
+
+function saveGame(){
+  const gameState = {
+    players: players.map(p=>({
+      id:p.id,
+      name:p.name,
+      state:p.state,
+      decided:p.decided
+    })),
+    currentPlayerIndex,
+    currentRoll,
+    currentColors,
+    currentDiceValues,
+    gameStarted
+  };
+  localStorage.setItem("qwintoSave", JSON.stringify(gameState));
+}
+
+function loadGame(){
+  const saved = localStorage.getItem("qwintoSave");
+  if(!saved) return false;
+  
+  try{
+    const gameState = JSON.parse(saved);
+    
+    document.getElementById("numPlayers").value = gameState.players.length;
+    buildPlayers(gameState.players.length);
+    
+    players.forEach((p,i)=>{
+      const savedPlayer = gameState.players[i];
+      p.name = savedPlayer.name;
+      p.state = savedPlayer.state;
+      p.decided = savedPlayer.decided;
+      
+      const nameInput = p.elements.sheet.querySelector(".playerName");
+      nameInput.value = p.name;
+      nameInput.disabled = gameState.gameStarted;
+      
+      for(const key in p.state.cells){
+        const val = p.state.cells[key];
+        if(val){
+          const [row,idx] = key.split("-");
+          const cell = p.elements.sheet.querySelector(`.cell[data-row="${row}"][data-idx="${idx}"]`);
+          if(cell) cell.firstChild.textContent = val;
+        }
+      }
+      
+      for(let f=0;f<p.state.fails;f++){
+        p.elements.failBoxes[f].textContent = "✗";
+        p.elements.failBoxes[f].classList.add("marked");
+      }
+    });
+    
+    currentPlayerIndex = gameState.currentPlayerIndex;
+    currentRoll = gameState.currentRoll;
+    currentColors = gameState.currentColors;
+    currentDiceValues = gameState.currentDiceValues;
+    gameStarted = gameState.gameStarted;
+    
+    if(currentRoll){
+      // Mapeo de colores a castellano
+      const colorMap = {
+        'orange': 'Nar',
+        'yellow': 'Ama',
+        'purple': 'Lil'
+      };
+      
+      // Actualizar todos los paneles con el resultado guardado
+      players.forEach(p => {
+        if(p.elements.diceResultSpan) p.elements.diceResultSpan.textContent = currentRoll;
+        if(p.elements.diceColorsSpan) p.elements.diceColorsSpan.textContent = currentColors.map(c=>c[0].toUpperCase()+c.slice(1)).join(", ");
+        if(p.elements.compactResult) p.elements.compactResult.textContent = `${currentRoll} (${currentColors.map(c=>colorMap[c]).join(", ")})`;
+        
+        if(p.elements.diceVisual){
+          p.elements.diceVisual.innerHTML = "";
+          currentDiceValues.forEach(d=>{
+            const die = document.createElement("div");
+            die.className = "miniDie " + d.color;
+            die.textContent = d.value;
+            p.elements.diceVisual.appendChild(die);
+          });
+        }
+        
+        if(p.elements.rollBtn) p.elements.rollBtn.disabled = true;
+        if(p.elements.diceChoices){
+          p.elements.diceChoices.forEach(cb => cb.disabled = true);
+        }
+        
+        if(!p.state.ended && !p.decided){
+          // El jugador activo NO puede pasar
+          p.elements.passBtn.disabled = (p.id === gameState.currentPlayerIndex);
+          p.elements.failBtnPlayer.disabled = !(p.id === gameState.currentPlayerIndex);
+        }
+      });
+      
+      highlightValidCells();
+    }
+    
+    refreshActiveMarks();
+    updateCurrentInfo();
+    updateRowProgress();
+    updateAllPlayers();
+    updateBadges();
+    
+    return true;
+  }catch(e){
+    console.error("Error loading game:",e);
+    return false;
+  }
+}
+
+if(loadGame()){
+  const cp = players[currentPlayerIndex];
+  setMessage(cp, "💾 Partida cargada desde guardado automático.",false);
+}
+</script>
+</body>
+</html>
